@@ -1,0 +1,37 @@
+{
+  "version": "1.0",
+  "name": "quotes_browse",
+  "description": "Browse quotes by tag on quotes.toscrape.com",
+  "created_at": "2026-05-29T04:44:26.277020Z",
+  "start_url": "https://quotes.toscrape.com",
+  "viewport": { "width": 1280, "height": 800 },
+  "variables": [],
+  "steps": [
+    {
+      "id": "s1",
+      "type": "navigate",
+      "url": "https://quotes.toscrape.com/",
+      "intent": "Navigate to the quotes homepage"
+    },
+    {
+      "id": "s2",
+      "type": "click",
+      "selectors": {
+        "testid": null,
+        "role": { "role": "link", "name": "inspirational" },
+        "text": "inspirational",
+        "css": null,
+        "xpath": "//a[normalize-space()=\"inspirational\"]",
+        "frame_path": []
+      },
+      "intent": "Click the 'inspirational' tag link",
+      "wait": { "strategy": "navigation", "timeout_ms": 15000 }
+    },
+    {
+      "id": "s3",
+      "type": "navigate",
+      "url": "https://quotes.toscrape.com/tag/inspirational/",
+      "intent": "Navigate to the inspirational tag page"
+    }
+  ]
+}

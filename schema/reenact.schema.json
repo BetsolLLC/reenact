@@ -1,0 +1,613 @@
+{
+  "$defs": {
+    "AssertStep": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "assert",
+          "default": "assert",
+          "title": "Type",
+          "type": "string"
+        },
+        "selectors": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SelectorBundle"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "assertion": {
+          "title": "Assertion",
+          "type": "string"
+        },
+        "expected": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected"
+        },
+        "intent": {
+          "title": "Intent",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "assertion",
+        "intent"
+      ],
+      "title": "AssertStep",
+      "type": "object"
+    },
+    "ClickStep": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "click",
+          "default": "click",
+          "title": "Type",
+          "type": "string"
+        },
+        "selectors": {
+          "$ref": "#/$defs/SelectorBundle"
+        },
+        "intent": {
+          "title": "Intent",
+          "type": "string"
+        },
+        "wait": {
+          "$ref": "#/$defs/WaitConfig"
+        }
+      },
+      "required": [
+        "id",
+        "selectors",
+        "intent"
+      ],
+      "title": "ClickStep",
+      "type": "object"
+    },
+    "HoverStep": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "hover",
+          "default": "hover",
+          "title": "Type",
+          "type": "string"
+        },
+        "selectors": {
+          "$ref": "#/$defs/SelectorBundle"
+        },
+        "intent": {
+          "title": "Intent",
+          "type": "string"
+        },
+        "wait": {
+          "$ref": "#/$defs/WaitConfig"
+        }
+      },
+      "required": [
+        "id",
+        "selectors",
+        "intent"
+      ],
+      "title": "HoverStep",
+      "type": "object"
+    },
+    "InputStep": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "input",
+          "default": "input",
+          "title": "Type",
+          "type": "string"
+        },
+        "selectors": {
+          "$ref": "#/$defs/SelectorBundle"
+        },
+        "value": {
+          "title": "Value",
+          "type": "string"
+        },
+        "intent": {
+          "title": "Intent",
+          "type": "string"
+        },
+        "clear_first": {
+          "default": true,
+          "title": "Clear First",
+          "type": "boolean"
+        },
+        "wait": {
+          "$ref": "#/$defs/WaitConfig"
+        }
+      },
+      "required": [
+        "id",
+        "selectors",
+        "value",
+        "intent"
+      ],
+      "title": "InputStep",
+      "type": "object"
+    },
+    "KeyStep": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "key",
+          "default": "key",
+          "title": "Type",
+          "type": "string"
+        },
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "selectors": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SelectorBundle"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "intent": {
+          "title": "Intent",
+          "type": "string"
+        },
+        "wait": {
+          "$ref": "#/$defs/WaitConfig"
+        }
+      },
+      "required": [
+        "id",
+        "key",
+        "intent"
+      ],
+      "title": "KeyStep",
+      "type": "object"
+    },
+    "NavigateStep": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "navigate",
+          "default": "navigate",
+          "title": "Type",
+          "type": "string"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        },
+        "intent": {
+          "title": "Intent",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "url",
+        "intent"
+      ],
+      "title": "NavigateStep",
+      "type": "object"
+    },
+    "RoleSelector": {
+      "description": "ARIA role + accessible name pair.",
+      "properties": {
+        "role": {
+          "title": "Role",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "name"
+      ],
+      "title": "RoleSelector",
+      "type": "object"
+    },
+    "ScrollStep": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "scroll",
+          "default": "scroll",
+          "title": "Type",
+          "type": "string"
+        },
+        "selectors": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SelectorBundle"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "delta_x": {
+          "default": 0,
+          "title": "Delta X",
+          "type": "integer"
+        },
+        "delta_y": {
+          "default": 0,
+          "title": "Delta Y",
+          "type": "integer"
+        },
+        "intent": {
+          "title": "Intent",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "intent"
+      ],
+      "title": "ScrollStep",
+      "type": "object"
+    },
+    "SelectStep": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "select",
+          "default": "select",
+          "title": "Type",
+          "type": "string"
+        },
+        "selectors": {
+          "$ref": "#/$defs/SelectorBundle"
+        },
+        "value": {
+          "title": "Value",
+          "type": "string"
+        },
+        "intent": {
+          "title": "Intent",
+          "type": "string"
+        },
+        "wait": {
+          "$ref": "#/$defs/WaitConfig"
+        }
+      },
+      "required": [
+        "id",
+        "selectors",
+        "value",
+        "intent"
+      ],
+      "title": "SelectStep",
+      "type": "object"
+    },
+    "SelectorBundle": {
+      "description": "All selector strategies captured at record time.\n\nPriority at replay: testid \u2192 role \u2192 text \u2192 css \u2192 xpath.\nFirst strategy yielding exactly one visible match wins.",
+      "properties": {
+        "testid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Testid"
+        },
+        "role": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RoleSelector"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Text"
+        },
+        "css": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Css"
+        },
+        "xpath": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Xpath"
+        },
+        "frame_path": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Frame Path",
+          "type": "array"
+        }
+      },
+      "title": "SelectorBundle",
+      "type": "object"
+    },
+    "Variable": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "default": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Default"
+        },
+        "secret": {
+          "default": false,
+          "title": "Secret",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "Variable",
+      "type": "object"
+    },
+    "Viewport": {
+      "properties": {
+        "width": {
+          "default": 1280,
+          "title": "Width",
+          "type": "integer"
+        },
+        "height": {
+          "default": 800,
+          "title": "Height",
+          "type": "integer"
+        }
+      },
+      "title": "Viewport",
+      "type": "object"
+    },
+    "WaitConfig": {
+      "properties": {
+        "strategy": {
+          "$ref": "#/$defs/WaitStrategy",
+          "default": "actionable"
+        },
+        "timeout_ms": {
+          "default": 5000,
+          "title": "Timeout Ms",
+          "type": "integer"
+        }
+      },
+      "title": "WaitConfig",
+      "type": "object"
+    },
+    "WaitStep": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "wait",
+          "default": "wait",
+          "title": "Type",
+          "type": "string"
+        },
+        "strategy": {
+          "$ref": "#/$defs/WaitStrategy",
+          "default": "actionable"
+        },
+        "duration_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duration Ms"
+        },
+        "intent": {
+          "title": "Intent",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "intent"
+      ],
+      "title": "WaitStep",
+      "type": "object"
+    },
+    "WaitStrategy": {
+      "enum": [
+        "actionable",
+        "navigation",
+        "networkidle",
+        "fixed"
+      ],
+      "title": "WaitStrategy",
+      "type": "string"
+    }
+  },
+  "description": "A complete, portable, self-describing workflow.",
+  "properties": {
+    "version": {
+      "default": "1.0",
+      "title": "Version",
+      "type": "string"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "description": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Description"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "start_url": {
+      "title": "Start Url",
+      "type": "string"
+    },
+    "viewport": {
+      "$ref": "#/$defs/Viewport"
+    },
+    "variables": {
+      "items": {
+        "$ref": "#/$defs/Variable"
+      },
+      "title": "Variables",
+      "type": "array"
+    },
+    "steps": {
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "assert": "#/$defs/AssertStep",
+            "click": "#/$defs/ClickStep",
+            "hover": "#/$defs/HoverStep",
+            "input": "#/$defs/InputStep",
+            "key": "#/$defs/KeyStep",
+            "navigate": "#/$defs/NavigateStep",
+            "scroll": "#/$defs/ScrollStep",
+            "select": "#/$defs/SelectStep",
+            "wait": "#/$defs/WaitStep"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/NavigateStep"
+          },
+          {
+            "$ref": "#/$defs/ClickStep"
+          },
+          {
+            "$ref": "#/$defs/InputStep"
+          },
+          {
+            "$ref": "#/$defs/SelectStep"
+          },
+          {
+            "$ref": "#/$defs/KeyStep"
+          },
+          {
+            "$ref": "#/$defs/WaitStep"
+          },
+          {
+            "$ref": "#/$defs/AssertStep"
+          },
+          {
+            "$ref": "#/$defs/ScrollStep"
+          },
+          {
+            "$ref": "#/$defs/HoverStep"
+          }
+        ]
+      },
+      "title": "Steps",
+      "type": "array"
+    }
+  },
+  "required": [
+    "name",
+    "start_url"
+  ],
+  "title": "Recording",
+  "type": "object"
+}

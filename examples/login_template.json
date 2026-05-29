@@ -1,0 +1,66 @@
+{
+  "version": "1.0",
+  "name": "login_template",
+  "description": "Parameterized login — run with --var username=alice --var-secret password",
+  "created_at": "2026-05-29T00:00:00Z",
+  "start_url": "https://your-app.example.com/login",
+  "viewport": { "width": 1280, "height": 800 },
+  "variables": [
+    { "name": "username", "default": null, "secret": false },
+    { "name": "password", "default": null, "secret": true }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "type": "navigate",
+      "url": "https://your-app.example.com/login",
+      "intent": "Navigate to the login page"
+    },
+    {
+      "id": "s2",
+      "type": "input",
+      "selectors": {
+        "testid": "login-username",
+        "role": { "role": "textbox", "name": "Username" },
+        "text": null,
+        "css": "#username",
+        "xpath": "//input[@id='username']",
+        "frame_path": []
+      },
+      "value": "{{username}}",
+      "intent": "Type the username into the username field",
+      "clear_first": true,
+      "wait": { "strategy": "actionable", "timeout_ms": 5000 }
+    },
+    {
+      "id": "s3",
+      "type": "input",
+      "selectors": {
+        "testid": "login-password",
+        "role": { "role": "textbox", "name": "Password" },
+        "text": null,
+        "css": "#password",
+        "xpath": "//input[@id='password']",
+        "frame_path": []
+      },
+      "value": "{{password}}",
+      "intent": "Type the password into the password field",
+      "clear_first": true,
+      "wait": { "strategy": "actionable", "timeout_ms": 5000 }
+    },
+    {
+      "id": "s4",
+      "type": "click",
+      "selectors": {
+        "testid": "login-submit",
+        "role": { "role": "button", "name": "Sign in" },
+        "text": "Sign in",
+        "css": null,
+        "xpath": "//button[normalize-space()='Sign in']",
+        "frame_path": []
+      },
+      "intent": "Click the Sign in button to submit the login form",
+      "wait": { "strategy": "navigation", "timeout_ms": 10000 }
+    }
+  ]
+}
