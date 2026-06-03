@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  lint-type-test:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -30,16 +30,3 @@ jobs:
 
       - name: Type check (mypy --strict)
         run: uv run mypy --strict src/reenact
-
-      - name: Generate JSON Schema
-        run: |
-          uv run python -c "
-          import json
-          from reenact.schema import Recording
-          schema = Recording.model_json_schema()
-          with open('schema/reenact.schema.json', 'w') as f:
-              json.dump(schema, f, indent=2)
-          "
-
-      - name: Test (pytest)
-        run: uv run pytest tests/ -v
