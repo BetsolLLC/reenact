@@ -3,7 +3,7 @@
 ## Setup
 
 ```bash
-git clone https://github.com/yourname/reenact
+git clone https://github.com/BetsolLLC/reenact
 cd reenact
 uv sync
 uv run playwright install chromium

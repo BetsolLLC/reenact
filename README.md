@@ -17,7 +17,7 @@ reenact run    login --var user=alice --var-secret password
 **Requirements:** Python 3.12+, [uv](https://docs.astral.sh/uv/)
 
 ```bash
-git clone https://github.com/yourname/reenact
+git clone https://github.com/BetsolLLC/reenact
 cd reenact
 uv sync
 uv run playwright install chromium
