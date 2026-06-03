@@ -1,4 +1,5 @@
 .venv/
+.claude/
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -10,3 +11,11 @@ build/
 *.egg
 .DS_Store
 recordings/
+
+# Demo artifacts
+*.mp4
+*.srt
+*.tape
+audio/
+scripts/
+videos/

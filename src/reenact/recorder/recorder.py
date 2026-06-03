@@ -187,6 +187,7 @@ class Recorder:
         url: str,
         headed: bool = True,
         automation: AutomationFn | None = None,
+        record_video_path: Path | None = None,
     ) -> Recording:
         """
         Launch the browser, collect events, and return a Recording.
@@ -197,15 +198,26 @@ class Recorder:
 
         When `automation` is None the recorder waits for the user to close
         the browser window (normal interactive usage).
+
+        When `record_video_path` is provided the browser session is recorded
+        to that path as a .webm file (Playwright built-in, no extra deps).
         """
         start_url = url
         viewport = Viewport(width=1280, height=800)
 
         async with async_playwright() as pw:
             browser = await pw.chromium.launch(headless=not headed)
-            context = await browser.new_context(
-                viewport={"width": viewport.width, "height": viewport.height}
-            )
+            if record_video_path is not None:
+                record_video_path.parent.mkdir(parents=True, exist_ok=True)
+                context = await browser.new_context(
+                    viewport={"width": viewport.width, "height": viewport.height},
+                    record_video_dir=str(record_video_path.parent),
+                    record_video_size={"width": viewport.width, "height": viewport.height},
+                )
+            else:
+                context = await browser.new_context(
+                    viewport={"width": viewport.width, "height": viewport.height}
+                )
             page = await context.new_page()
 
             # Binding must be registered before add_init_script / goto.
@@ -219,6 +231,11 @@ class Recorder:
 
             if automation is not None:
                 await automation(page)
+                video = page.video if record_video_path is not None else None
+                # Context must close first to finalize the video before save_as().
+                await context.close()
+                if video is not None and record_video_path is not None:
+                    await video.save_as(record_video_path)
                 await browser.close()
             else:
                 # On macOS, Cmd+W closes the page (tab) but leaves the Chromium

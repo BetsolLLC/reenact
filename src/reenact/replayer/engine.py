@@ -56,19 +56,43 @@ class Engine:
         self._variables = variables
         self._secret_names = secret_names or set()
 
-    async def replay(self, recording: Recording, headed: bool = False) -> ReplayReport:
+    async def replay(
+        self,
+        recording: Recording,
+        headed: bool = False,
+        record_video_path: Path | None = None,
+    ) -> ReplayReport:
         """Launch browser, replay all steps, return report."""
         t0 = time.monotonic()
         async with async_playwright() as pw:
             browser = await pw.chromium.launch(headless=not headed)
-            context = await browser.new_context(
-                viewport={
-                    "width": recording.viewport.width,
-                    "height": recording.viewport.height,
-                }
-            )
+            if record_video_path is not None:
+                record_video_path.parent.mkdir(parents=True, exist_ok=True)
+                context = await browser.new_context(
+                    viewport={
+                        "width": recording.viewport.width,
+                        "height": recording.viewport.height,
+                    },
+                    record_video_dir=str(record_video_path.parent),
+                    record_video_size={
+                        "width": recording.viewport.width,
+                        "height": recording.viewport.height,
+                    },
+                )
+            else:
+                context = await browser.new_context(
+                    viewport={
+                        "width": recording.viewport.width,
+                        "height": recording.viewport.height,
+                    }
+                )
             page = await context.new_page()
             report = await self._replay_on_page(recording, page)
+            video = page.video if record_video_path is not None else None
+            # Context must close first to finalize the video before save_as().
+            await context.close()
+            if video is not None and record_video_path is not None:
+                await video.save_as(record_video_path)
             await browser.close()
 
         report.total_ms = _ms(t0)
