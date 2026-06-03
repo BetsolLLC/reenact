@@ -7,13 +7,13 @@ name = "reenact"
 version = "0.1.0"
 description = "Browser record/replay tool — deterministic, zero AI deps"
 readme = "README.md"
-license = { text = "MIT" }
+license = { text = "BSD-3-Clause" }
 authors = [{ name = "Sanskar Jaiswal", email = "sanskar.jaiswal@betsol.com" }]
 keywords = ["browser", "automation", "record", "replay", "playwright", "testing"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: BSD License",
     "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Testing",
 ]
