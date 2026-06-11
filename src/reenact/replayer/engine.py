@@ -13,7 +13,6 @@ from typing import Literal
 
 from playwright.async_api import Locator, Page, async_playwright
 
-from reenact.stealth import launch_stealth_browser, new_stealth_context
 from reenact.interpolation import interpolate
 from reenact.schema import (
     AssertStep,
@@ -28,6 +27,12 @@ from reenact.schema import (
     Step,
     WaitConfig,
     WaitStep,
+)
+from reenact.stealth import (
+    default_chrome_profile_dir,
+    launch_persistent_context,
+    launch_stealth_browser,
+    new_stealth_context,
 )
 
 from .resolver import ResolverError, resolve
@@ -62,6 +67,8 @@ class Engine:
         recording: Recording,
         headed: bool = False,
         record_video_path: Path | None = None,
+        use_system_chrome: bool = False,
+        chrome_profile_dir: Path | None = None,
     ) -> ReplayReport:
         """Launch browser, replay all steps, return report."""
         t0 = time.monotonic()
@@ -70,16 +77,31 @@ class Engine:
                 "width": recording.viewport.width,
                 "height": recording.viewport.height,
             }
-            browser = await launch_stealth_browser(pw.chromium, headless=not headed)
             vid_dir = record_video_path.parent if record_video_path is not None else None
             if vid_dir is not None:
                 vid_dir.mkdir(parents=True, exist_ok=True)
-            context = await new_stealth_context(
-                browser,
-                viewport=vp,
-                record_video_dir=vid_dir,
-                record_video_size=vp if vid_dir is not None else None,
-            )
+
+            if chrome_profile_dir is not None:
+                profile_dir = chrome_profile_dir if chrome_profile_dir != Path("default") \
+                    else default_chrome_profile_dir()
+                context = await launch_persistent_context(
+                    pw.chromium,
+                    user_data_dir=profile_dir,
+                    headless=headed is False,
+                    viewport=vp,
+                    use_system_chrome=use_system_chrome or True,
+                )
+                browser = None
+            else:
+                browser = await launch_stealth_browser(
+                    pw.chromium, headless=not headed, use_system_chrome=use_system_chrome
+                )
+                context = await new_stealth_context(
+                    browser,
+                    viewport=vp,
+                    record_video_dir=vid_dir,
+                    record_video_size=vp if vid_dir is not None else None,
+                )
             page = await context.new_page()
             report = await self._replay_on_page(recording, page)
             video = page.video if record_video_path is not None else None
@@ -87,7 +109,8 @@ class Engine:
             await context.close()
             if video is not None and record_video_path is not None:
                 await video.save_as(record_video_path)
-            await browser.close()
+            if browser is not None:
+                await browser.close()
 
         report.total_ms = _ms(t0)
         return report
@@ -200,12 +223,11 @@ class Engine:
                     )
                 except Exception:
                     # Restore page so the click fallback finds the element.
-                    try:
+                    import contextlib
+                    with contextlib.suppress(Exception):
                         await page.goto(
                             origin_url, wait_until="domcontentloaded", timeout=15_000
                         )
-                    except Exception:
-                        pass
                     loc, strategy = await resolve(step.selectors, page)
 
             # Non-link element (or direct-nav failed): click with JS-dispatch fallback.

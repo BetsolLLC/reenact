@@ -72,22 +72,48 @@ def record(
     name: str,
     url: Annotated[str | None, typer.Option("--url")] = None,
     headed: bool = typer.Option(True, "--headed/--headless"),
+    use_chrome: bool = typer.Option(
+        False, "--use-chrome/--no-use-chrome",
+        help="Use system Google Chrome instead of downloading Playwright's Chromium.",
+    ),
+    chrome_profile: bool = typer.Option(
+        False, "--chrome-profile/--no-chrome-profile",
+        help="Use existing Chrome profile (carries SSO sessions). Implies --use-chrome.",
+    ),
     recordings_dir: Annotated[Path | None, _recordings_dir_option] = None,
 ) -> None:
     """Record a browser session."""
     import asyncio
 
     from reenact.recorder.recorder import Recorder
+    from reenact.stealth import default_chrome_profile_dir
     from reenact.storage import save
 
     cfg = _config(recordings_dir, headed=headed)
     start_url = url or typer.prompt("Start URL")
 
+    if chrome_profile:
+        profile_dir = default_chrome_profile_dir()
+        if not profile_dir.exists():
+            console.print(f"[red]Chrome profile not found: {profile_dir}[/red]")
+            console.print("[dim]Close Chrome if it's open and try again, or specify a path.[/dim]")
+            raise typer.Exit(1)
+        console.print(f"[dim]Using Chrome profile: {profile_dir}[/dim]")
+        console.print(
+            "[yellow]Close Google Chrome before continuing "
+            "(profile must not be locked).[/yellow]"
+        )
+
     console.print(f"[green]Recording '[bold]{name}[/bold]'...[/green]")
     console.print("[dim]Interact with the browser, then close it to finish.[/dim]")
 
     recorder = Recorder(name=name)
-    recording = asyncio.run(recorder.record(url=start_url, headed=cfg.headed))
+    recording = asyncio.run(recorder.record(
+        url=start_url,
+        headed=cfg.headed,
+        use_system_chrome=use_chrome or chrome_profile,
+        chrome_profile_dir=default_chrome_profile_dir() if chrome_profile else None,
+    ))
 
     path = save(recording, cfg.recordings_dir)
     console.print(
@@ -99,6 +125,10 @@ def record(
 def replay(
     name: str,
     headed: bool = typer.Option(False, "--headed/--headless"),
+    use_chrome: bool = typer.Option(
+        False, "--use-chrome/--no-use-chrome",
+        help="Use system Google Chrome instead of Playwright's Chromium.",
+    ),
     recordings_dir: Annotated[Path | None, _recordings_dir_option] = None,
 ) -> None:
     """Replay a recording deterministically. Fails loud on broken steps."""
@@ -115,7 +145,7 @@ def replay(
     console.print(f"Replaying [bold]{name}[/bold] ({len(recording.steps)} steps) ...")
 
     engine = Engine()
-    report = asyncio.run(engine.replay(recording, headed=cfg.headed))
+    report = asyncio.run(engine.replay(recording, headed=cfg.headed, use_system_chrome=use_chrome))
 
     table = Table(show_header=True, header_style="bold")
     table.add_column("ID", style="dim", width=4)
@@ -162,6 +192,10 @@ def run(
         typer.Option("--var-secret", help="Prompt for secret value at runtime"),
     ] = None,
     headed: bool = typer.Option(False, "--headed/--headless"),
+    use_chrome: bool = typer.Option(
+        False, "--use-chrome/--no-use-chrome",
+        help="Use system Google Chrome instead of Playwright's Chromium.",
+    ),
     recordings_dir: Annotated[Path | None, _recordings_dir_option] = None,
 ) -> None:
     """Replay with variable substitution. Secrets are prompted, never stored."""
@@ -223,7 +257,7 @@ def run(
 
     engine = Engine()
     engine.set_variables(variables, secret_names)
-    report = asyncio.run(engine.replay(recording, headed=cfg.headed))
+    report = asyncio.run(engine.replay(recording, headed=cfg.headed, use_system_chrome=use_chrome))
 
     table = Table(show_header=True, header_style="bold")
     table.add_column("ID", style="dim", width=4)

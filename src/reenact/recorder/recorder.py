@@ -10,7 +10,6 @@ from typing import Any
 
 from playwright.async_api import Frame, Page, async_playwright
 
-from reenact.stealth import INIT_SCRIPT, launch_stealth_browser, new_stealth_context
 from reenact.schema import (
     ClickStep,
     HoverStep,
@@ -24,6 +23,13 @@ from reenact.schema import (
     Viewport,
     WaitConfig,
     WaitStrategy,
+)
+from reenact.stealth import (
+    INIT_SCRIPT,
+    default_chrome_profile_dir,
+    launch_persistent_context,
+    launch_stealth_browser,
+    new_stealth_context,
 )
 
 from .selectorgen import build_intent, build_selector_bundle
@@ -193,6 +199,8 @@ class Recorder:
         headed: bool = True,
         automation: AutomationFn | None = None,
         record_video_path: Path | None = None,
+        use_system_chrome: bool = False,
+        chrome_profile_dir: Path | None = None,
     ) -> Recording:
         """
         Launch the browser, collect events, and return a Recording.
@@ -212,16 +220,32 @@ class Recorder:
 
         async with async_playwright() as pw:
             vp = {"width": viewport.width, "height": viewport.height}
-            browser = await launch_stealth_browser(pw.chromium, headless=not headed)
             vid_dir = record_video_path.parent if record_video_path is not None else None
             if vid_dir is not None:
                 vid_dir.mkdir(parents=True, exist_ok=True)
-            context = await new_stealth_context(
-                browser,
-                viewport=vp,
-                record_video_dir=vid_dir,
-                record_video_size=vp if vid_dir is not None else None,
-            )
+
+            if chrome_profile_dir is not None:
+                # Persistent context — carries existing Chrome session (SSO cookies etc.)
+                profile_dir = chrome_profile_dir if chrome_profile_dir != Path("default") \
+                    else default_chrome_profile_dir()
+                context = await launch_persistent_context(
+                    pw.chromium,
+                    user_data_dir=profile_dir,
+                    headless=False,  # persistent context requires headed for most SSO flows
+                    viewport=vp,
+                    use_system_chrome=use_system_chrome or True,
+                )
+                browser = None
+            else:
+                browser = await launch_stealth_browser(
+                    pw.chromium, headless=not headed, use_system_chrome=use_system_chrome
+                )
+                context = await new_stealth_context(
+                    browser,
+                    viewport=vp,
+                    record_video_dir=vid_dir,
+                    record_video_size=vp if vid_dir is not None else None,
+                )
             page = await context.new_page()
 
             # Binding must be registered before add_init_script / goto.
@@ -241,7 +265,8 @@ class Recorder:
                 await context.close()
                 if video is not None and record_video_path is not None:
                     await video.save_as(record_video_path)
-                await browser.close()
+                if browser is not None:
+                    await browser.close()
             else:
                 # On macOS, Cmd+W closes the page (tab) but leaves the Chromium
                 # process alive in the dock.  page.on('close') fires reliably on
@@ -254,7 +279,10 @@ class Recorder:
                 page.on("close", _on_page_close)
                 await page_done.wait()
                 with contextlib.suppress(Exception):
-                    await browser.close()
+                    await context.close()
+                if browser is not None:
+                    with contextlib.suppress(Exception):
+                        await browser.close()
 
         self._queue._post_process()
         return Recording(
