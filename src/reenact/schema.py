@@ -26,6 +26,7 @@ class StepType(StrEnum):
     assert_ = "assert"
     scroll = "scroll"
     hover = "hover"
+    extract = "extract"
 
 
 class WaitStrategy(StrEnum):
@@ -166,6 +167,17 @@ class HoverStep(BaseModel):
     wait: WaitConfig = Field(default_factory=WaitConfig)
 
 
+class ExtractStep(BaseModel):
+    """Extract text content from a highlighted element at replay time."""
+
+    id: str
+    type: Literal[StepType.extract] = StepType.extract
+    selectors: SelectorBundle
+    variable: str | None = None
+    recorded_text: str | None = None
+    intent: str
+
+
 # Discriminated union — add new step types here as the schema evolves.
 _StepUnion = (
     NavigateStep
@@ -177,6 +189,7 @@ _StepUnion = (
     | AssertStep
     | ScrollStep
     | HoverStep
+    | ExtractStep
 )
 Step = Annotated[_StepUnion, Field(discriminator="type")]
 

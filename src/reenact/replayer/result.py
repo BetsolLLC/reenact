@@ -17,6 +17,7 @@ class StepResult:
     error: str | None = None
     screenshot: Path | None = None
     duration_ms: int = 0
+    extracted_value: str | None = None
 
 
 @dataclass
@@ -25,6 +26,7 @@ class ReplayReport:
     status: Literal["pass", "fail"]
     steps: list[StepResult] = field(default_factory=list)
     total_ms: int = 0
+    extracted: dict[str, str] = field(default_factory=dict)
 
     @property
     def passed(self) -> int:

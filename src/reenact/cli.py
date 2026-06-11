@@ -173,6 +173,15 @@ def replay(
         f"({report.total_ms}ms total)"
     )
 
+    if report.extracted:
+        from rich.table import Table as RichTable
+        ext_table = RichTable(title="Extracted values", show_header=True)
+        ext_table.add_column("Variable", style="cyan")
+        ext_table.add_column("Value")
+        for var, val in report.extracted.items():
+            ext_table.add_row(var, val)
+        console.print(ext_table)
+
     if report.status == "fail":
         fail = report.first_failure()
         if fail:
@@ -286,6 +295,15 @@ def run(
         f"[bold]{report.passed}/{len(report.steps)} passed[/bold]  "
         f"({report.total_ms}ms total)"
     )
+
+    if report.extracted:
+        from rich.table import Table as RichTable
+        ext_table = RichTable(title="Extracted values", show_header=True)
+        ext_table.add_column("Variable", style="cyan")
+        ext_table.add_column("Value")
+        for ext_var, ext_val in report.extracted.items():
+            ext_table.add_row(ext_var, mask_secrets(ext_val, secret_values))
+        console.print(ext_table)
 
     if report.status == "fail":
         fail = report.first_failure()

@@ -96,6 +96,14 @@ def build_intent(action: str, el: dict[str, Any]) -> str:
             return f"Hover over the '{name}' {label}"
         return f"Hover over the {label}"
 
+    if action == "extract":
+        value = _str(el, "value") or ""
+        snippet = (value[:40] + "…") if len(value) > 40 else value
+        suffix = f" ('{snippet}')" if snippet else ""
+        if name:
+            return f"Extract text from the '{name}' {label}{suffix}"
+        return f"Extract text from the {label}{suffix}"
+
     if name:
         return f"{action.capitalize()} the '{name}' {label}"
     return f"{action.capitalize()} the {label}"

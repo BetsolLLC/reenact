@@ -18,6 +18,7 @@ from reenact.interpolation import interpolate
 from reenact.schema import (
     AssertStep,
     ClickStep,
+    ExtractStep,
     HoverStep,
     InputStep,
     KeyStep,
@@ -131,10 +132,21 @@ class Engine:
             if result.status == "fail":
                 break  # fail loud — don't continue after a broken step
 
+        extracted = {
+            r.step_id: r.extracted_value
+            for r in results
+            if r.extracted_value is not None
+        }
+        # Also key by variable name when the step had one
+        for step, r in zip(recording.steps[:len(results)], results, strict=False):
+            if isinstance(step, ExtractStep) and step.variable and r.extracted_value is not None:
+                extracted[step.variable] = r.extracted_value
+
         overall: ReplayReport = ReplayReport(
             recording_name=recording.name,
             status="pass" if all(r.status == "pass" for r in results) else "fail",
             steps=results,
+            extracted=extracted,
         )
         return overall
 
@@ -173,6 +185,9 @@ class Engine:
 
         if isinstance(step, HoverStep):
             return await self._hover(step, page, name, t0)
+
+        if isinstance(step, ExtractStep):
+            return await self._extract(step, page, name, t0)
 
         return StepResult(
             step_id=step.id,
@@ -467,6 +482,31 @@ class Engine:
                 status="pass",
                 strategy_used=strategy,
                 duration_ms=_ms(t0),
+            )
+        except (ResolverError, Exception) as exc:
+            shot = await self._screenshot(page, name, step.id)
+            return StepResult(
+                step_id=step.id,
+                intent=step.intent,
+                status="fail",
+                error=str(exc),
+                screenshot=shot,
+                duration_ms=_ms(t0),
+            )
+
+    async def _extract(
+        self, step: ExtractStep, page: Page, name: str, t0: float
+    ) -> StepResult:
+        try:
+            loc, strategy = await resolve(step.selectors, page)
+            value = (await loc.inner_text()).strip()
+            return StepResult(
+                step_id=step.id,
+                intent=step.intent,
+                status="pass",
+                strategy_used=strategy,
+                duration_ms=_ms(t0),
+                extracted_value=value,
             )
         except (ResolverError, Exception) as exc:
             shot = await self._screenshot(page, name, step.id)

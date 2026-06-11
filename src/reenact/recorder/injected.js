@@ -208,6 +208,44 @@
     });
   }, true);
 
+  // ── Text highlight / extract ──────────────────────────────────────────────
+  // Fires when the user deliberately selects text on the page.
+  // Walks up the DOM to find the smallest "meaningful" ancestor element
+  // (one with an id, testid, role, or accessible name) so the selector bundle
+  // is as stable as possible.
+
+  document.addEventListener('mouseup', function () {
+    var sel = window.getSelection();
+    if (!sel || sel.isCollapsed) return;
+    var text = sel.toString().trim();
+    if (text.length < 3) return;  // ignore accidental micro-selections
+
+    var range = sel.getRangeAt(0);
+    var node = range.commonAncestorContainer;
+    // Text node → use parent element
+    if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+    if (!node || node === document.body) return;
+
+    // Walk up to find a node that has stable targeting attributes
+    var el = node;
+    for (var i = 0; i < 6 && el && el !== document.body; i++) {
+      var hasId = el.id && el.id.trim();
+      var hasTestId = el.getAttribute && el.getAttribute('data-testid');
+      var hasRole = el.getAttribute && el.getAttribute('role');
+      var hasAriaLabel = el.getAttribute && el.getAttribute('aria-label');
+      if (hasId || hasTestId || hasRole || hasAriaLabel) break;
+      el = el.parentElement;
+    }
+    if (!el || el === document.body) el = node;
+
+    emit({
+      type: 'extract',
+      element: serializeElement(el),
+      selected_text: text,
+      url: window.location.href,
+    });
+  }, true);
+
   // ── Special keys (Escape, Tab; Enter only on non-input elements) ──────────
 
   document.addEventListener('keydown', function (e) {

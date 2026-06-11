@@ -13,6 +13,7 @@ from playwright.async_api import Frame, Page, async_playwright
 
 from reenact.schema import (
     ClickStep,
+    ExtractStep,
     HoverStep,
     InputStep,
     KeyStep,
@@ -173,6 +174,20 @@ class EventQueue:
                     selectors=selectors,
                     intent=build_intent("hover", el),
                     wait=WaitConfig(strategy=WaitStrategy.actionable),
+                )
+            )
+
+        elif event_type == "extract":
+            selectors = build_selector_bundle(el)
+            selected_text = str(data.get("selected_text") or "").strip()
+            step_id = self._next_id()
+            self._steps.append(
+                ExtractStep(
+                    id=step_id,
+                    selectors=selectors,
+                    variable=f"extracted_{step_id}",
+                    recorded_text=selected_text or None,
+                    intent=build_intent("extract", {**el, "value": selected_text}),
                 )
             )
 
