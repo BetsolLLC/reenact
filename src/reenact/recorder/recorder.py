@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import shutil
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
@@ -224,11 +225,12 @@ class Recorder:
             if vid_dir is not None:
                 vid_dir.mkdir(parents=True, exist_ok=True)
 
+            temp_profile_dir: Path | None = None
             if chrome_profile_dir is not None:
                 # Persistent context — carries existing Chrome session (SSO cookies etc.)
                 profile_dir = chrome_profile_dir if chrome_profile_dir != Path("default") \
                     else default_chrome_profile_dir()
-                context = await launch_persistent_context(
+                context, temp_profile_dir = await launch_persistent_context(
                     pw.chromium,
                     user_data_dir=profile_dir,
                     headless=False,  # persistent context requires headed for most SSO flows
@@ -283,6 +285,8 @@ class Recorder:
                 if browser is not None:
                     with contextlib.suppress(Exception):
                         await browser.close()
+            if temp_profile_dir is not None:
+                shutil.rmtree(temp_profile_dir, ignore_errors=True)
 
         self._queue._post_process()
         return Recording(

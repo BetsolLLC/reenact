@@ -7,6 +7,7 @@ tried, and a screenshot path in the StepResult.
 
 from __future__ import annotations
 
+import shutil
 import time
 from pathlib import Path
 from typing import Literal
@@ -81,10 +82,11 @@ class Engine:
             if vid_dir is not None:
                 vid_dir.mkdir(parents=True, exist_ok=True)
 
+            temp_profile_dir: Path | None = None
             if chrome_profile_dir is not None:
                 profile_dir = chrome_profile_dir if chrome_profile_dir != Path("default") \
                     else default_chrome_profile_dir()
-                context = await launch_persistent_context(
+                context, temp_profile_dir = await launch_persistent_context(
                     pw.chromium,
                     user_data_dir=profile_dir,
                     headless=headed is False,
@@ -111,6 +113,8 @@ class Engine:
                 await video.save_as(record_video_path)
             if browser is not None:
                 await browser.close()
+            if temp_profile_dir is not None:
+                shutil.rmtree(temp_profile_dir, ignore_errors=True)
 
         report.total_ms = _ms(t0)
         return report

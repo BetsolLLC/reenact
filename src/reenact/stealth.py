@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import contextlib
 import platform
+import shutil
+import tempfile
 from pathlib import Path
 
 from playwright.async_api import Browser, BrowserContext, BrowserType, ViewportSize
@@ -136,6 +139,43 @@ async def new_stealth_context(
     return context
 
 
+def copy_chrome_profile_for_playwright(source_user_data_dir: Path) -> Path:
+    """Copy Chrome session files to a temp dir.
+
+    Chrome blocks Playwright's CDP connection when --user-data-dir points to
+    the default profile location. Copying to a temp dir sidesteps the restriction
+    while carrying SSO cookies and session state.
+
+    Returns the temp dir path — caller must delete it when done.
+    """
+    temp_dir = Path(tempfile.mkdtemp(prefix="reenact-chrome-"))
+    default_src = source_user_data_dir / "Default"
+    default_dst = temp_dir / "Default"
+    default_dst.mkdir(parents=True, exist_ok=True)
+
+    # Files that carry session cookies and login state.
+    for fname in (
+        "Cookies", "Cookies-journal",
+        "Login Data", "Login Data-journal",
+        "Login Data For Account",
+        "Preferences", "Secure Preferences",
+        "Web Data",
+    ):
+        src = default_src / fname
+        if src.exists():
+            with contextlib.suppress(OSError):
+                shutil.copy2(src, default_dst / fname)
+
+    # Directories that hold session/local storage tokens.
+    for dname in ("Network", "Session Storage", "Local Storage"):
+        src = default_src / dname
+        if src.exists():
+            with contextlib.suppress(OSError):
+                shutil.copytree(src, default_dst / dname, dirs_exist_ok=True)
+
+    return temp_dir
+
+
 async def launch_persistent_context(
     browser_type: BrowserType,
     *,
@@ -143,12 +183,15 @@ async def launch_persistent_context(
     headless: bool,
     viewport: dict[str, int],
     use_system_chrome: bool = True,
-) -> BrowserContext:
-    """Launch Chrome with an existing user profile — carries SSO cookies and session state.
+) -> tuple[BrowserContext, Path | None]:
+    """Launch Chrome with session cookies from an existing profile.
 
-    The returned context is ready to use (no separate browser.new_context() needed).
-    Note: Chrome must not already have the profile open, or Playwright will fail to lock it.
+    Copies essential profile files to a temp dir first — Chrome blocks CDP on
+    the default user data directory (security restriction added in Chrome 115+).
+
+    Returns (context, temp_dir). Caller must delete temp_dir after context.close().
     """
+    temp_dir = copy_chrome_profile_for_playwright(user_data_dir)
     vp = ViewportSize(width=viewport["width"], height=viewport["height"])
     kwargs: dict[str, object] = {
         "headless": headless,
@@ -158,8 +201,8 @@ async def launch_persistent_context(
     if use_system_chrome:
         kwargs["channel"] = "chrome"
     context: BrowserContext = await browser_type.launch_persistent_context(
-        str(user_data_dir),
+        str(temp_dir),
         **kwargs,  # type: ignore[arg-type]
     )
     await context.add_init_script(INIT_SCRIPT)
-    return context
+    return context, temp_dir
