@@ -151,10 +151,14 @@
   document.addEventListener('change', function (e) {
     var el = e.target;
     if (el instanceof HTMLSelectElement) {
+      var selIdx = el.selectedIndex;
+      var selOpt = el.options[selIdx];
       emit({
         type: 'select',
         element: serializeElement(el),
         value: el.value,
+        selected_text: selOpt ? selOpt.text : null,
+        selected_index: selIdx >= 0 ? selIdx : null,
         url: window.location.href,
       });
     } else if (el instanceof HTMLInputElement) {

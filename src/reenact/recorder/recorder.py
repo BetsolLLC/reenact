@@ -10,6 +10,7 @@ from typing import Any
 
 from playwright.async_api import Frame, Page, async_playwright
 
+from reenact.stealth import INIT_SCRIPT, launch_stealth_browser, new_stealth_context
 from reenact.schema import (
     ClickStep,
     HoverStep,
@@ -120,11 +121,15 @@ class EventQueue:
 
         elif event_type == "select":
             selectors = build_selector_bundle(el)
+            raw_text = data.get("selected_text")
+            raw_idx = data.get("selected_index")
             self._steps.append(
                 SelectStep(
                     id=self._next_id(),
                     selectors=selectors,
                     value=str(data.get("value") or ""),
+                    selected_label=str(raw_text).strip() if raw_text is not None else None,
+                    selected_index=int(raw_idx) if raw_idx is not None else None,
                     intent=build_intent("select", {**el, "value": data.get("value")}),
                     wait=WaitConfig(strategy=WaitStrategy.actionable),
                 )
@@ -206,22 +211,22 @@ class Recorder:
         viewport = Viewport(width=1280, height=800)
 
         async with async_playwright() as pw:
-            browser = await pw.chromium.launch(headless=not headed)
-            if record_video_path is not None:
-                record_video_path.parent.mkdir(parents=True, exist_ok=True)
-                context = await browser.new_context(
-                    viewport={"width": viewport.width, "height": viewport.height},
-                    record_video_dir=str(record_video_path.parent),
-                    record_video_size={"width": viewport.width, "height": viewport.height},
-                )
-            else:
-                context = await browser.new_context(
-                    viewport={"width": viewport.width, "height": viewport.height}
-                )
+            vp = {"width": viewport.width, "height": viewport.height}
+            browser = await launch_stealth_browser(pw.chromium, headless=not headed)
+            vid_dir = record_video_path.parent if record_video_path is not None else None
+            if vid_dir is not None:
+                vid_dir.mkdir(parents=True, exist_ok=True)
+            context = await new_stealth_context(
+                browser,
+                viewport=vp,
+                record_video_dir=vid_dir,
+                record_video_size=vp if vid_dir is not None else None,
+            )
             page = await context.new_page()
 
             # Binding must be registered before add_init_script / goto.
             await page.expose_binding("__reenact_event", self._on_event)
+            await page.add_init_script(INIT_SCRIPT)
             await page.add_init_script(_INJECTED_JS)
 
             # Track main-frame navigations.

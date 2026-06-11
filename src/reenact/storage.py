@@ -17,7 +17,8 @@ def save(recording: Recording, directory: Path) -> Path:
 
 
 def load(name: str, directory: Path) -> Recording:
-    path = directory / f"{name}.json"
+    p = Path(name)
+    path = p if p.is_absolute() else directory / p.with_suffix(".json")
     if not path.exists():
         raise FileNotFoundError(f"Recording not found: {path}")
     raw: dict[str, object] = json.loads(path.read_text(encoding="utf-8"))

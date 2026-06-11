@@ -117,6 +117,8 @@ class SelectStep(BaseModel):
     type: Literal[StepType.select] = StepType.select
     selectors: SelectorBundle
     value: str
+    selected_label: str | None = None
+    selected_index: int | None = None
     intent: str
     wait: WaitConfig = Field(default_factory=WaitConfig)
 

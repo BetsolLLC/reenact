@@ -11,8 +11,9 @@ import time
 from pathlib import Path
 from typing import Literal
 
-from playwright.async_api import Page, async_playwright
+from playwright.async_api import Locator, Page, async_playwright
 
+from reenact.stealth import launch_stealth_browser, new_stealth_context
 from reenact.interpolation import interpolate
 from reenact.schema import (
     AssertStep,
@@ -65,27 +66,20 @@ class Engine:
         """Launch browser, replay all steps, return report."""
         t0 = time.monotonic()
         async with async_playwright() as pw:
-            browser = await pw.chromium.launch(headless=not headed)
-            if record_video_path is not None:
-                record_video_path.parent.mkdir(parents=True, exist_ok=True)
-                context = await browser.new_context(
-                    viewport={
-                        "width": recording.viewport.width,
-                        "height": recording.viewport.height,
-                    },
-                    record_video_dir=str(record_video_path.parent),
-                    record_video_size={
-                        "width": recording.viewport.width,
-                        "height": recording.viewport.height,
-                    },
-                )
-            else:
-                context = await browser.new_context(
-                    viewport={
-                        "width": recording.viewport.width,
-                        "height": recording.viewport.height,
-                    }
-                )
+            vp = {
+                "width": recording.viewport.width,
+                "height": recording.viewport.height,
+            }
+            browser = await launch_stealth_browser(pw.chromium, headless=not headed)
+            vid_dir = record_video_path.parent if record_video_path is not None else None
+            if vid_dir is not None:
+                vid_dir.mkdir(parents=True, exist_ok=True)
+            context = await new_stealth_context(
+                browser,
+                viewport=vp,
+                record_video_dir=vid_dir,
+                record_video_size=vp if vid_dir is not None else None,
+            )
             page = await context.new_page()
             report = await self._replay_on_page(recording, page)
             video = page.video if record_video_path is not None else None
@@ -187,8 +181,48 @@ class Engine:
     ) -> StepResult:
         try:
             loc, strategy = await resolve(step.selectors, page)
-            await loc.click()
-            await apply_wait(page, step.wait)
+
+            # For <a> elements with a real href, navigate directly — avoids
+            # overlay interception, target="_blank", redirect chains, etc.
+            # Falls back to click if the server rejects the direct request
+            # (e.g. CDN blocking headless at HTTP/2 protocol level).
+            href = await _link_href(loc)
+            if href:
+                origin_url = page.url
+                try:
+                    await page.goto(href, wait_until="domcontentloaded", timeout=30_000)
+                    return StepResult(
+                        step_id=step.id,
+                        intent=step.intent,
+                        status="pass",
+                        strategy_used="direct-nav",
+                        duration_ms=_ms(t0),
+                    )
+                except Exception:
+                    # Restore page so the click fallback finds the element.
+                    try:
+                        await page.goto(
+                            origin_url, wait_until="domcontentloaded", timeout=15_000
+                        )
+                    except Exception:
+                        pass
+                    loc, strategy = await resolve(step.selectors, page)
+
+            # Non-link element (or direct-nav failed): click with JS-dispatch fallback.
+            js_fallback = False
+            try:
+                await loc.click(timeout=5_000)
+            except Exception:
+                # Overlay intercepts pointer events — dispatch JS click instead.
+                await loc.dispatch_event("click")
+                js_fallback = True
+            try:
+                await apply_wait(page, step.wait)
+            except Exception:
+                if not js_fallback:
+                    raise
+                # JS click may open a new tab or trigger navigation handled
+                # by the next navigate step — best-effort wait is fine here.
             return StepResult(
                 step_id=step.id,
                 intent=step.intent,
@@ -251,7 +285,7 @@ class Engine:
         try:
             value = interpolate(step.value, self._variables)
             loc, strategy = await resolve(step.selectors, page)
-            await loc.select_option(value)
+            await _select_best(loc, value, step.selected_label, step.selected_index)
             await apply_wait(page, step.wait)
             return StepResult(
                 step_id=step.id,
@@ -432,3 +466,56 @@ class Engine:
             return path
         except Exception:
             return None
+
+
+async def _select_best(
+    loc: Locator,
+    value: str,
+    label: str | None,
+    index: int | None,
+) -> None:
+    """Select an option using the best available selector.
+
+    Falls back from value → label → index when value looks like a serialised
+    JS object (e.g. '[object Object]' from framework-driven selects).
+    """
+    bad_value = not value or value == "[object Object]"
+    if not bad_value:
+        try:
+            await loc.select_option(value=value)
+            return
+        except Exception:
+            pass
+    if label:
+        try:
+            await loc.select_option(label=label)
+            return
+        except Exception:
+            pass
+    if index is not None:
+        await loc.select_option(index=index)
+        return
+    # Last resort: original value (will raise if still wrong)
+    await loc.select_option(value=value)
+
+
+async def _link_href(loc: Locator) -> str | None:
+    """Return the absolute href if loc is an <a> with a navigable URL, else None."""
+    try:
+        href: str | None = await loc.evaluate(
+            """el => {
+                if (!(el instanceof HTMLAnchorElement)) return null;
+                const h = el.href;
+                if (!h || h.startsWith('javascript:') || h === '#') return null;
+                // Same-page fragment links are in-page actions, not navigations.
+                try {
+                    const u = new URL(h);
+                    if (u.origin === location.origin && u.pathname === location.pathname)
+                        return null;
+                } catch (_) {}
+                return h;
+            }"""
+        )
+        return href or None
+    except Exception:
+        return None

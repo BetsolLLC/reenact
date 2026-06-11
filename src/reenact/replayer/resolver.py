@@ -12,6 +12,9 @@ Shadow DOM: Playwright's locators pierce shadow DOM by default.
 
 from __future__ import annotations
 
+import asyncio
+import re
+
 from playwright.async_api import FrameLocator, Locator, Page
 
 from reenact.schema import SelectorBundle
@@ -34,8 +37,43 @@ class ResolverError(Exception):
         )
 
 
-async def resolve(bundle: SelectorBundle, page: Page) -> tuple[Locator, str]:
-    """Return (locator, strategy_name) or raise ResolverError."""
+async def resolve(
+    bundle: SelectorBundle, page: Page, *, max_attempts: int = 3, retry_delay_ms: int = 1500
+) -> tuple[Locator, str]:
+    """Return (locator, strategy_name) or raise ResolverError.
+
+    Retries up to max_attempts times with retry_delay_ms between attempts to
+    handle pages that render content dynamically after domcontentloaded.
+    """
+    for attempt in range(max_attempts):
+        result = await _try_resolve(bundle, page)
+        if result is not None:
+            return result
+        if attempt < max_attempts - 1:
+            await asyncio.sleep(retry_delay_ms / 1000)
+
+    # Collect tried strategies for the error message.
+    tried = _strategy_names(bundle)
+    raise ResolverError(bundle, tried)
+
+
+def _strategy_names(bundle: SelectorBundle) -> list[str]:
+    names: list[str] = []
+    if bundle.testid:
+        names.append("testid")
+    if bundle.role:
+        names += ["role", "role~", "role~short"]
+    if bundle.text:
+        names += ["text", "text~", "text~short"]
+    if bundle.css:
+        names.append("css")
+    if bundle.xpath:
+        names.append("xpath")
+    return names
+
+
+async def _try_resolve(bundle: SelectorBundle, page: Page) -> tuple[Locator, str] | None:
+    """Single attempt across all strategies; returns None if nothing matched."""
     # Descend into iframes first.
     root: Page | FrameLocator = page
     for frame_sel in bundle.frame_path:
@@ -50,10 +88,11 @@ async def resolve(bundle: SelectorBundle, page: Page) -> tuple[Locator, str]:
         if loc is not None:
             return loc, "testid"
 
-    # 2. role + accessible name (exact match, case-insensitive in Playwright)
+    # 2. role + accessible name
     if bundle.role:
-        tried.append("role")
         r = bundle.role
+        # 2a. exact name
+        tried.append("role")
         role_loc = (
             root.get_by_role(r.role, name=r.name, exact=True)  # type: ignore[arg-type]
             if r.name
@@ -62,13 +101,43 @@ async def resolve(bundle: SelectorBundle, page: Page) -> tuple[Locator, str]:
         loc = await _first_visible(role_loc)
         if loc is not None:
             return loc, "role"
+        if r.name:
+            # 2b. partial name (element accessible-name contains recorded name)
+            tried.append("role~")
+            loc = await _first_visible(
+                root.get_by_role(r.role, name=r.name, exact=False)  # type: ignore[arg-type]
+            )
+            if loc is not None:
+                return loc, "role~"
+            # 2c. truncated prefix (recorded name is longer than element text)
+            short = _short_text(r.name)
+            if short != r.name:
+                tried.append("role~short")
+                loc = await _first_visible(
+                    root.get_by_role(r.role, name=short, exact=False)  # type: ignore[arg-type]
+                )
+                if loc is not None:
+                    return loc, "role~short"
 
-    # 3. visible text (exact)
+    # 3. visible text
     if bundle.text:
+        # 3a. exact
         tried.append("text")
         loc = await _first_visible(root.get_by_text(bundle.text, exact=True))
         if loc is not None:
             return loc, "text"
+        # 3b. partial (element text contains recorded text)
+        tried.append("text~")
+        loc = await _first_visible(root.get_by_text(bundle.text, exact=False))
+        if loc is not None:
+            return loc, "text~"
+        # 3c. truncated prefix (recorded text is longer than element text)
+        short = _short_text(bundle.text)
+        if short != bundle.text:
+            tried.append("text~short")
+            loc = await _first_visible(root.get_by_text(short, exact=False))
+            if loc is not None:
+                return loc, "text~short"
 
     # 4. CSS selector
     if bundle.css:
@@ -84,7 +153,30 @@ async def resolve(bundle: SelectorBundle, page: Page) -> tuple[Locator, str]:
         if loc is not None:
             return loc, "xpath"
 
-    raise ResolverError(bundle, tried)
+    return None
+
+
+_URL_RE = re.compile(r"https?://")
+_BREADCRUMB = frozenset("›»·")
+
+
+def _short_text(text: str, max_words: int = 6) -> str:
+    """Return a clean prefix: strips URL noise, breadcrumb chars, and caps word count.
+
+    Handles cases like "TitleBrandhttps://example.com › ..." where the URL is
+    concatenated directly onto a word with no whitespace.
+    """
+    words = text.split()
+    clean: list[str] = []
+    for w in words:
+        # Stop at any word that contains or is a URL / breadcrumb separator.
+        if _URL_RE.search(w) or any(c in w for c in _BREADCRUMB) or w == "...":
+            break
+        clean.append(w)
+        if len(clean) >= max_words:
+            break
+    result = " ".join(clean)
+    return result if result else text
 
 
 async def _first_visible(loc: Locator) -> Locator | None:
